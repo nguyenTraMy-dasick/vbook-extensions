@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Hương Khí Lâu",
+    "source": "https://huongkhilau.com",
+    "description": "Truyện ngôn tình Việt Nam",
+    "version": "1.0.0",
+    "script": "https://raw.githubusercontent.com/nguyenTraMy-dasick/vbook-extensions/main/huongkhilau/index.js",
+    "icon": "https://huongkhilau.com/img/hkl-logo.png"
+  }
+]
