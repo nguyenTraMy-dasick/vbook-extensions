@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "author": "Ivy",
+    "description": "I'm just a kid"
+  },
+  "data": [
+
+    {
+      "name": "huongkhilau",
+      "author": "Ivy",
+      "path": "https://raw.githubusercontent.com/nguyenTraMy-dasick/vbook-extions/main/huongkhilau/plugin.zip",
+      "version": 1,
+      "source": "https://huongkhilau.com/",
+      "icon": "https://raw.githubusercontent.com/nguyentTraMy-dasick/vbook-extions/main/huongkhilau/icon.png",
+      "description": "Đọc truyện trên trang https://huongkhilau.com/",
+      "type": "novel",
+      "locale": "vi_VN"
+    }
+
+  ]
+}
