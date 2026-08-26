@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "name": "Archive of Our Own",
+    "author": "Tramy",
+    "version": 1,
+    "source": "https://archiveofourown.org",
+    "regexp": "archiveofourown\\.org/(works|chapters)/\\d+",
+    "description": "Đọc fanfiction trên Archive of Our Own (AO3)",
+    "locale": "en_US",
+    "language": "javascript",
+    "type": "novel"
+  },
+  "script": {
+    "search": "search.js",
+    "detail": "detail.js",
+    "toc": "toc.js",
+    "chap": "chap.js"
+  }
+}
