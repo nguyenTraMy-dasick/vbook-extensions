@@ -16,7 +16,7 @@ REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(REPO_DIR, "extensions")
 RAW_BASE = "https://raw.githubusercontent.com/nguyenTraMy-dasick/vbook-extensions/main/extensions"
 INDEX_AUTHOR = "Ivy"
-INDEX_DESCRIPTION = "Extension vBook cho AO3 và FanFiction.net"
+INDEX_DESCRIPTION = "Extension vBook cho AO3, FanFiction.net và Asianfanfics"
 
 
 def list_extensions():

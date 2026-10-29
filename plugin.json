@@ -1,7 +1,7 @@
 {
   "metadata": {
     "author": "Ivy",
-    "description": "Extension vBook cho AO3 và FanFiction.net"
+    "description": "Extension vBook cho AO3, FanFiction.net và Asianfanfics"
   },
   "data": [
     {
@@ -12,6 +12,17 @@
       "source": "https://archiveofourown.org",
       "icon": "https://raw.githubusercontent.com/nguyenTraMy-dasick/vbook-extensions/main/extensions/ao3/icon.png",
       "description": "Đọc fanfiction trên Archive of Our Own (AO3)",
+      "type": "novel",
+      "locale": "en"
+    },
+    {
+      "name": "Asianfanfics",
+      "author": "Ivy",
+      "path": "https://raw.githubusercontent.com/nguyenTraMy-dasick/vbook-extensions/main/extensions/asianfanfics/plugin.zip",
+      "version": 1,
+      "source": "https://www.asianfanfics.com",
+      "icon": "https://raw.githubusercontent.com/nguyenTraMy-dasick/vbook-extensions/main/extensions/asianfanfics/icon.png",
+      "description": "Đọc fanfiction trên Asianfanfics",
       "type": "novel",
       "locale": "en"
     },

@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "name": "Asianfanfics",
+    "author": "Ivy",
+    "version": 1,
+    "source": "https://www.asianfanfics.com",
+    "regexp": "(https?://)?(www\\.)?asianfanfics\\.com/story/view/\\d+.*",
+    "description": "Đọc fanfiction trên Asianfanfics",
+    "locale": "en",
+    "language": "javascript",
+    "type": "novel",
+    "nsfw": false
+  },
+  "script": {
+    "home": "home.js",
+    "genre": "genre.js",
+    "search": "search.js",
+    "detail": "detail.js",
+    "toc": "toc.js",
+    "chap": "chap.js"
+  },
+  "config": {
+    "DOMAIN": {
+      "title": "Domain",
+      "default": "https://www.asianfanfics.com",
+      "mode": "input",
+      "format": "text"
+    },
+    "LANGUAGE": {
+      "title": "Ngôn ngữ truyện",
+      "subtitle": "Lọc danh sách theo ngôn ngữ của truyện",
+      "default": "English",
+      "values": ["English", "Tất cả", "中文", "日本語", "한국어", "Tiếng Việt", "Bahasa Indonesia", "ไทย", "Filipino", "Bahasa Melayu", "Français", "Español", "Português"],
+      "mode": "select"
+    },
+    "thread_num": 2,
+    "delay": 500
+  }
+}
