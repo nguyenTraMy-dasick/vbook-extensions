@@ -1,13 +1,6 @@
 load('config.js');
 
-function execute(url) {
-    var id = getStoryId(normalizeUrl(url));
-    if (!id) return Response.error("Link FanFiction.net không hợp lệ: " + url);
-
-    var storyUrl = BASE_URL + "/s/" + id + "/1/";
-    var doc = loadDoc(storyUrl);
-    if (!doc) return siteError(null);
-
+function desktopDetail(doc, storyUrl) {
     var top = firstEl(doc, "#profile_top");
     if (!top) return siteError(doc, "Không tìm thấy truyện (có thể đã bị xoá).");
 
@@ -23,10 +16,9 @@ function execute(url) {
     // Breadcrumb: "Books > Harry Potter" or "X + Y Crossover".
     var crumbs = doc.select("#pre_story_links a");
     var fandomEl = crumbs.size() > 0 ? crumbs.get(crumbs.size() - 1) : null;
-    var fandom = fandomEl ? cleanText(fandomEl.text()) : "";
 
     var lines = [];
-    if (fandom) lines.push("Fandom: " + fandom);
+    if (fandomEl) lines.push("Fandom: " + cleanText(fandomEl.text()));
     var parts = stats.split(" - ");
     for (var i = 0; i < parts.length; i++) {
         var p = cleanText(parts[i]);
@@ -35,29 +27,92 @@ function execute(url) {
     }
 
     var rated = /Rated:\s*Fiction\s+(\S+)/.exec(stats);
-    var genres = [];
-    if (fandomEl) {
-        genres.push({ title: fandom, input: fandomEl.attr("href"), script: "list.js" });
-    }
-    var suggests = [];
-    if (authorEl) {
-        suggests.push({ title: "Truyện khác của " + author, input: authorEl.attr("href"), script: "list.js" });
-    }
-
-    return Response.success({
+    return buildDetail({
         name: titleEl ? cleanText(titleEl.text()) : "",
+        authorEl: authorEl,
         author: author,
         cover: cover,
-        host: BASE_URL,
         description: summaryEl ? summaryEl.html() : "",
-        detail: lines.join("<br>"),
-        url: storyUrl,
+        lines: lines,
+        complete: stats.indexOf("Status: Complete") >= 0,
+        rating: rated ? rated[1] : "",
+        fandomEl: fandomEl,
+        url: storyUrl
+    });
+}
+
+// m.fanfiction.net has no summary or cover on story pages, only title/author/stats.
+function mobileDetail(doc, storyUrl) {
+    var parts = mobileParts(doc);
+    if (!parts || doc.select("#storycontent").size() === 0) return siteError(doc, "Không tìm thấy truyện (có thể đã bị xoá).");
+
+    var titleEl = firstEl(parts.content, "div[align=center] b");
+    var authorEl = firstEl(parts.content, "a[href^='/u/']");
+    var fandomEl = null;
+    var stats = "";
+    if (parts.segs.length > 1) {
+        var seg = Html.parse(parts.segs[1]);
+        var links = seg.select("a[href^='/']");
+        if (links.size() > 0) fandomEl = links.get(links.size() - 1);
+        stats = cleanText(seg.select("body").text());
+        var r = stats.indexOf("Rated:");
+        if (r > 0) stats = stats.substring(r);
+    }
+
+    var lines = [];
+    if (fandomEl) lines.push("Fandom: " + cleanText(fandomEl.text()));
+    if (stats) lines.push(stats);
+    lines.push("Chapters: " + mobileChapterCount(doc));
+
+    var rated = /Rated:\s*([^,\s]+)/.exec(stats);
+    return buildDetail({
+        name: titleEl ? cleanText(titleEl.text()) : "",
+        authorEl: authorEl,
+        author: authorEl ? cleanText(authorEl.text()) : "",
+        cover: "",
+        description: stats,
+        lines: lines,
+        complete: /\bComplete\b/.test(stats),
+        rating: rated ? rated[1] : "",
+        fandomEl: fandomEl,
+        url: storyUrl
+    });
+}
+
+function buildDetail(d) {
+    var genres = [];
+    if (d.fandomEl) {
+        genres.push({ title: cleanText(d.fandomEl.text()), input: d.fandomEl.attr("href"), script: "list.js" });
+    }
+    var suggests = [];
+    if (d.authorEl) {
+        suggests.push({ title: "Truyện khác của " + d.author, input: d.authorEl.attr("href"), script: "list.js" });
+    }
+    return Response.success({
+        name: d.name,
+        author: d.author,
+        cover: d.cover,
+        host: BASE_URL,
+        description: d.description,
+        detail: d.lines.join("<br>"),
+        url: d.url,
         type: "novel",
         format: "novel",
-        ongoing: stats.indexOf("Status: Complete") < 0,
-        nsfw: rated ? rated[1] === "M" : false,
+        ongoing: !d.complete,
+        nsfw: d.rating === "M",
         locale: "en",
         genres: genres,
         suggests: suggests
     });
+}
+
+function execute(url) {
+    var id = getStoryId(normalizeUrl(url));
+    if (!id) return Response.error("Link FanFiction.net không hợp lệ: " + url);
+
+    var page = loadStoryPage(id, 1);
+    if (!page) return siteError(null);
+
+    var storyUrl = BASE_URL + "/s/" + id + "/1/";
+    return page.mobile ? mobileDetail(page.doc, storyUrl) : desktopDetail(page.doc, storyUrl);
 }

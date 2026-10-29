@@ -30,118 +30,171 @@ function cleanText(s) {
     return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-// Every real FanFiction.net page (story, list, search, error) is server-rendered inside
-// #content_wrapper_inner. Cloudflare challenge pages are not, and their text is
-// localized to the phone's language, so checking titles like "Just a moment" is unreliable.
+var M_BASE_URL = "https://m.fanfiction.net";
+
+// Every real desktop page (story, list, search, error) is rendered inside
+// #content_wrapper_inner; every mobile page has the div.t_head bar. Cloudflare challenge
+// pages have neither, and their text is localized to the phone's language.
 function isRealPage(doc) {
     return !!doc && doc.select("#content_wrapper_inner").size() > 0;
 }
 
+function isRealMobilePage(doc) {
+    return !!doc && doc.select("div.t_head").size() > 0;
+}
+
 var LAST_ERROR = "";
-var BROWSER_MODE_KEY = "ffn_browser_until";
+var DIAG = [];
+var MODE_KEY = "ffn_story_mode";
 var LAST_PAGE_KEY = "ffn_last_page";
-var CF_MESSAGE = "FanFiction.net đang bật xác minh Cloudflare. Hãy mở fanfiction.net bằng trình duyệt trong vBook (biểu tượng quả địa cầu ở trang extension/truyện), chờ qua bước \"Verify you are human\", rồi quay lại thử lại.";
+var CF_MESSAGE = "FanFiction.net đang chặn bằng Cloudflare. Thử mở fanfiction.net bằng trình duyệt trong vBook rồi quay lại thử lại.";
 
 function nowMs() {
     return new Date().getTime();
 }
 
-function browserModeActive() {
-    try {
-        return Number(cacheStorage.getItem(BROWSER_MODE_KEY) || 0) > nowMs();
-    } catch (e) {
-        return false;
-    }
+function hostOf(url) {
+    var m = /^https?:\/\/([^\/]+)/.exec(url);
+    return m ? m[1] : url;
 }
 
-function setBrowserMode(on) {
-    try {
-        if (on) cacheStorage.setItem(BROWSER_MODE_KEY, String(nowMs() + 15 * 60 * 1000));
-        else cacheStorage.removeItem(BROWSER_MODE_KEY);
-    } catch (e) {
-    }
+function describe(doc) {
+    if (!doc) return "không có nội dung";
+    var title = cleanText(doc.select("title").text());
+    return title ? "\"" + title.substring(0, 50) + "\"" : "trang không có tiêu đề";
 }
 
-// detail, toc and chap 1 all load the same /s/ID/1/ page in a row; keep the last one
-// for a short time so opening a story costs one request instead of three.
-function cachedPage(url) {
-    try {
-        var raw = cacheStorage.getItem(LAST_PAGE_KEY);
-        if (!raw) return null;
-        var o = JSON.parse(raw);
-        if (o.u !== url || nowMs() - o.t > 120000) return null;
-        var doc = Html.parse(o.h);
-        return isRealPage(doc) ? doc : null;
-    } catch (e) {
+function tryFetch(url, isReal) {
+    var res = fetch(url);
+    if (res.ok) {
+        var doc = res.html();
+        if (isReal(doc)) return doc;
+        DIAG.push("fetch " + hostOf(url) + " → " + res.status + " " + describe(doc));
         return null;
     }
+    var cf = res.header("cf-mitigated");
+    DIAG.push("fetch " + hostOf(url) + " → HTTP " + res.status + (cf ? " (cf-mitigated: " + cf + ")" : ""));
+    return null;
 }
 
-function rememberPage(url, doc) {
-    if (!/\/s\/\d+\/\d+\/$/.test(url)) return;
-    try {
-        cacheStorage.setItem(LAST_PAGE_KEY, JSON.stringify({ u: url, t: nowMs(), h: doc.html() }));
-    } catch (e) {
-    }
-}
-
-// Load a page in the app's headless browser, which can run Cloudflare's JS check.
-function browserLoad(url) {
-    var browser = Engine.newBrowser();
+// The app's headless browser can run Cloudflare's JavaScript check.
+function tryBrowser(url, isReal) {
     var page = null;
+    var browser = Engine.newBrowser();
     try {
-        page = browser.launch(url, 30000);
-        for (var i = 0; i < 12 && !isRealPage(page); i++) {
+        page = browser.launch(url, 15000);
+        for (var i = 0; i < 6 && !isReal(page); i++) {
             page = browser.html(2500);
         }
+    } catch (e) {
+        DIAG.push("browser " + hostOf(url) + " lỗi: " + e);
     } finally {
-        browser.close();
-    }
-    return isRealPage(page) ? page : null;
-}
-
-// Plain fetch first. When Cloudflare answers instead of FanFiction.net, use the headless
-// browser, and keep using it for 15 minutes so later requests skip the doomed fetch.
-function loadDoc(url) {
-    LAST_ERROR = "";
-    var cached = cachedPage(url);
-    if (cached) return cached;
-
-    var viaBrowser = browserModeActive();
-    if (!viaBrowser) {
-        var res = fetch(url);
-        if (res.ok) {
-            var doc = res.html();
-            if (isRealPage(doc)) {
-                rememberPage(url, doc);
-                return doc;
-            }
-        } else if (res.status === 404) {
-            LAST_ERROR = "Không tìm thấy trang trên FanFiction.net (404).";
-            return null;
-        } else if (res.status === 504 && !res.url) {
-            LAST_ERROR = "Không kết nối được FanFiction.net, kiểm tra mạng rồi thử lại.";
-            return null;
+        try {
+            browser.close();
+        } catch (e2) {
         }
     }
-
-    var page = browserLoad(url);
-    if (page) {
-        if (!viaBrowser) setBrowserMode(true);
-        rememberPage(url, page);
-        return page;
-    }
-    if (viaBrowser) setBrowserMode(false);
-    LAST_ERROR = CF_MESSAGE;
+    if (isReal(page)) return page;
+    DIAG.push("browser " + hostOf(url) + " → " + describe(page));
     return null;
+}
+
+function failWith(message) {
+    LAST_ERROR = message + (DIAG.length ? "\n\nChi tiết: " + DIAG.join(" | ") : "");
+    return null;
+}
+
+// Listing/search pages: desktop fetch, then headless browser.
+function loadDoc(url) {
+    LAST_ERROR = "";
+    DIAG = [];
+    var doc = tryFetch(url, isRealPage) || tryBrowser(url, isRealPage);
+    return doc || failWith(CF_MESSAGE);
+}
+
+// Story pages (/s/ID/N/) are the most protected. Try, in order: desktop fetch, mobile
+// fetch, desktop headless browser, mobile headless browser — starting with whichever
+// worked last time (remembered for 30 minutes). Returns { doc, mobile } or null.
+var STORY_METHODS = ["fetch", "mfetch", "browser", "mbrowser"];
+
+function runStoryMethod(method, path) {
+    if (method === "fetch") return tryFetch(BASE_URL + path, isRealPage);
+    if (method === "mfetch") return tryFetch(M_BASE_URL + path, isRealMobilePage);
+    if (method === "browser") return tryBrowser(BASE_URL + path, isRealPage);
+    return tryBrowser(M_BASE_URL + path, isRealMobilePage);
+}
+
+function loadStoryPage(id, chapter) {
+    LAST_ERROR = "";
+    DIAG = [];
+    var path = "/s/" + id + "/" + (chapter || 1) + "/";
+
+    // detail, toc and chap 1 load the same page in a row: reuse it for 2 minutes.
+    try {
+        var raw = cacheStorage.getItem(LAST_PAGE_KEY);
+        if (raw) {
+            var c = JSON.parse(raw);
+            if (c.p === path && nowMs() - c.t < 120000) {
+                return { doc: Html.parse(c.h), mobile: c.m };
+            }
+        }
+    } catch (e) {
+    }
+
+    var order = STORY_METHODS.slice();
+    try {
+        var saved = JSON.parse(cacheStorage.getItem(MODE_KEY) || "null");
+        if (saved && saved.until > nowMs() && order.indexOf(saved.m) > 0) {
+            order.splice(order.indexOf(saved.m), 1);
+            order.unshift(saved.m);
+        }
+    } catch (e) {
+    }
+
+    for (var i = 0; i < order.length; i++) {
+        var doc = runStoryMethod(order[i], path);
+        if (!doc) continue;
+        var mobile = order[i].charAt(0) === "m";
+        try {
+            cacheStorage.setItem(MODE_KEY, JSON.stringify({ m: order[i], until: nowMs() + 30 * 60 * 1000 }));
+            cacheStorage.setItem(LAST_PAGE_KEY, JSON.stringify({ p: path, t: nowMs(), m: mobile, h: doc.html() }));
+        } catch (e) {
+        }
+        return { doc: doc, mobile: mobile };
+    }
+    return failWith(CF_MESSAGE);
 }
 
 function siteError(doc, fallback) {
     if (doc) {
-        var warn = cleanText(doc.select(".gui_warning, .gui_normal").text());
+        var warn = cleanText(doc.select(".gui_warning").text());
         if (warn) return Response.error(warn);
     }
     return Response.error(LAST_ERROR || fallback || CF_MESSAGE);
+}
+
+// ---- mobile story page (m.fanfiction.net) helpers ----
+
+// Header block of #content: "<b>Title</b> by <a>Author</a> <hr> crumbs + stats <hr> ... Chapter 1: Name".
+function mobileParts(doc) {
+    var content = firstEl(doc, "#content");
+    if (!content) return null;
+    var segs = content.html().split(/<hr[^>]*>/i);
+    return { content: content, segs: segs };
+}
+
+function mobileChapterCount(doc) {
+    var m = /Ch\s+\d+\s+of\s+(\d+)/.exec(cleanText(doc.select("body").text()));
+    return m ? parseInt(m[1], 10) : 1;
+}
+
+function mobileChapterTitle(doc) {
+    var parts = mobileParts(doc);
+    if (!parts || parts.segs.length < 3) return "";
+    var tail = parts.segs[parts.segs.length - 1];
+    var i = tail.lastIndexOf("</span>");
+    if (i >= 0) tail = tail.substring(i + 7);
+    return cleanText(Html.parse(tail).select("body").text());
 }
 
 function coverUrl(img) {
