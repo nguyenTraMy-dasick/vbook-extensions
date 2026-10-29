@@ -2,7 +2,7 @@
   "metadata": {
     "name": "Archive of Our Own",
     "author": "Ivy",
-    "version": 2,
+    "version": 3,
     "source": "https://archiveofourown.org",
     "regexp": "(https?://)?(www\\.)?(archiveofourown\\.(org|com|net|gay)|ao3\\.org)/(works|chapters)/\\d+.*",
     "description": "Đọc fanfiction trên Archive of Our Own (AO3)",

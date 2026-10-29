@@ -30,45 +30,118 @@ function cleanText(s) {
     return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-// Cloudflare challenge / "verify you are human" pages.
-function isBlocked(doc) {
-    var title = cleanText(doc.select("title").text()).toLowerCase();
-    if (title.indexOf("just a moment") >= 0 || title.indexOf("attention required") >= 0) return true;
-    return doc.select("#challenge-form, #challenge-running, #cf-wrapper, .cf-turnstile, #turnstile-wrapper").size() > 0;
+// Every real FanFiction.net page (story, list, search, error) is server-rendered inside
+// #content_wrapper_inner. Cloudflare challenge pages are not, and their text is
+// localized to the phone's language, so checking titles like "Just a moment" is unreliable.
+function isRealPage(doc) {
+    return !!doc && doc.select("#content_wrapper_inner").size() > 0;
 }
 
-// Plain fetch first; when Cloudflare blocks it, retry in the app's headless browser,
-// which can pass the JS challenge.
-function loadDoc(url, readySelector) {
-    var res = fetch(url);
-    if (res.ok) {
-        var doc = res.html();
-        if (!isBlocked(doc)) return doc;
-    } else if (res.status !== 403 && res.status !== 503 && res.status !== 429) {
+var LAST_ERROR = "";
+var BROWSER_MODE_KEY = "ffn_browser_until";
+var LAST_PAGE_KEY = "ffn_last_page";
+var CF_MESSAGE = "FanFiction.net đang bật xác minh Cloudflare. Hãy mở fanfiction.net bằng trình duyệt trong vBook (biểu tượng quả địa cầu ở trang extension/truyện), chờ qua bước \"Verify you are human\", rồi quay lại thử lại.";
+
+function nowMs() {
+    return new Date().getTime();
+}
+
+function browserModeActive() {
+    try {
+        return Number(cacheStorage.getItem(BROWSER_MODE_KEY) || 0) > nowMs();
+    } catch (e) {
+        return false;
+    }
+}
+
+function setBrowserMode(on) {
+    try {
+        if (on) cacheStorage.setItem(BROWSER_MODE_KEY, String(nowMs() + 15 * 60 * 1000));
+        else cacheStorage.removeItem(BROWSER_MODE_KEY);
+    } catch (e) {
+    }
+}
+
+// detail, toc and chap 1 all load the same /s/ID/1/ page in a row; keep the last one
+// for a short time so opening a story costs one request instead of three.
+function cachedPage(url) {
+    try {
+        var raw = cacheStorage.getItem(LAST_PAGE_KEY);
+        if (!raw) return null;
+        var o = JSON.parse(raw);
+        if (o.u !== url || nowMs() - o.t > 120000) return null;
+        var doc = Html.parse(o.h);
+        return isRealPage(doc) ? doc : null;
+    } catch (e) {
         return null;
     }
+}
 
+function rememberPage(url, doc) {
+    if (!/\/s\/\d+\/\d+\/$/.test(url)) return;
+    try {
+        cacheStorage.setItem(LAST_PAGE_KEY, JSON.stringify({ u: url, t: nowMs(), h: doc.html() }));
+    } catch (e) {
+    }
+}
+
+// Load a page in the app's headless browser, which can run Cloudflare's JS check.
+function browserLoad(url) {
     var browser = Engine.newBrowser();
     var page = null;
     try {
         page = browser.launch(url, 30000);
-        for (var i = 0; i < 8; i++) {
-            if (page && !isBlocked(page) && (!readySelector || page.select(readySelector).size() > 0)) break;
+        for (var i = 0; i < 12 && !isRealPage(page); i++) {
             page = browser.html(2500);
         }
     } finally {
         browser.close();
     }
-    if (!page || isBlocked(page)) return null;
-    return page;
+    return isRealPage(page) ? page : null;
+}
+
+// Plain fetch first. When Cloudflare answers instead of FanFiction.net, use the headless
+// browser, and keep using it for 15 minutes so later requests skip the doomed fetch.
+function loadDoc(url) {
+    LAST_ERROR = "";
+    var cached = cachedPage(url);
+    if (cached) return cached;
+
+    var viaBrowser = browserModeActive();
+    if (!viaBrowser) {
+        var res = fetch(url);
+        if (res.ok) {
+            var doc = res.html();
+            if (isRealPage(doc)) {
+                rememberPage(url, doc);
+                return doc;
+            }
+        } else if (res.status === 404) {
+            LAST_ERROR = "Không tìm thấy trang trên FanFiction.net (404).";
+            return null;
+        } else if (res.status === 504 && !res.url) {
+            LAST_ERROR = "Không kết nối được FanFiction.net, kiểm tra mạng rồi thử lại.";
+            return null;
+        }
+    }
+
+    var page = browserLoad(url);
+    if (page) {
+        if (!viaBrowser) setBrowserMode(true);
+        rememberPage(url, page);
+        return page;
+    }
+    if (viaBrowser) setBrowserMode(false);
+    LAST_ERROR = CF_MESSAGE;
+    return null;
 }
 
 function siteError(doc, fallback) {
     if (doc) {
-        var warn = cleanText(doc.select(".gui_warning, .gui_normal, #content_wrapper_inner .panel").text());
+        var warn = cleanText(doc.select(".gui_warning, .gui_normal").text());
         if (warn) return Response.error(warn);
     }
-    return Response.error(fallback || "Không tải được trang FanFiction.net (có thể bị Cloudflare chặn, hãy mở trang bằng trình duyệt trong app rồi thử lại).");
+    return Response.error(LAST_ERROR || fallback || CF_MESSAGE);
 }
 
 function coverUrl(img) {

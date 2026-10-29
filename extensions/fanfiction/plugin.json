@@ -2,7 +2,7 @@
   "metadata": {
     "name": "FanFiction.net",
     "author": "Ivy",
-    "version": 1,
+    "version": 2,
     "source": "https://www.fanfiction.net",
     "regexp": "(https?://)?(www\\.|m\\.)?fanfiction\\.net/s/\\d+.*",
     "description": "Đọc fanfiction trên FanFiction.net",
@@ -26,7 +26,7 @@
       "mode": "input",
       "format": "text"
     },
-    "thread_num": 2,
-    "delay": 500
+    "thread_num": 1,
+    "delay": 1000
   }
 }

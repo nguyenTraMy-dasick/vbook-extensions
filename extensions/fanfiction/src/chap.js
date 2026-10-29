@@ -5,7 +5,7 @@ function execute(url) {
     if (!/\/s\/\d+\/\d+/.test(url)) return Response.error("Link chương không hợp lệ: " + url);
     if (!/\/$/.test(url) && /\/s\/\d+\/\d+$/.test(url)) url += "/";
 
-    var doc = loadDoc(url, "#storytext");
+    var doc = loadDoc(url);
     if (!doc) return siteError(null);
 
     var content = firstEl(doc, "#storytext");

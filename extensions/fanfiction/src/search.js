@@ -7,7 +7,7 @@ function execute(query, page) {
 
     var url = BASE_URL + "/search/?ready=1&type=story&keywords=" +
         encodeURIComponent(query).replace(/%20/g, "+") + "&ppage=" + page;
-    var doc = loadDoc(url, "div.z-list, #content_wrapper_inner");
+    var doc = loadDoc(url);
     if (!doc) return siteError(null);
 
     var items = parseStoryList(doc);

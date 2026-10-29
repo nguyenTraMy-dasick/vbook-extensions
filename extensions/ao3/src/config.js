@@ -71,10 +71,10 @@ function tagWorksPath(tag) {
     return "/tags/" + encodeURIComponent(t) + "/works";
 }
 
+// Every real AO3 page has div#main. Cloudflare challenge pages don't (and their title
+// is localized to the phone's language, so title checks are unreliable).
 function isBlocked(doc) {
-    var title = cleanText(doc.select("title").text()).toLowerCase();
-    if (title.indexOf("just a moment") >= 0 || title.indexOf("attention required") >= 0) return true;
-    return doc.select("#challenge-form, #challenge-running, #cf-wrapper, .cf-turnstile, #turnstile-wrapper").size() > 0;
+    return !doc || doc.select("#main").size() === 0;
 }
 
 function isMaintenance(doc) {
@@ -109,8 +109,8 @@ function loadDoc(url, readySelector) {
     var page = null;
     try {
         page = browser.launch(url, 30000);
-        for (var i = 0; i < 8; i++) {
-            if (page && !isBlocked(page) && (!readySelector || page.select(readySelector).size() > 0)) break;
+        for (var i = 0; i < 12; i++) {
+            if (!isBlocked(page) || (page && isMaintenance(page))) break;
             page = browser.html(2500);
         }
     } finally {

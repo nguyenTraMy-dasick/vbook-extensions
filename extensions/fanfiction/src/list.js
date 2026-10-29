@@ -17,7 +17,7 @@ function execute(input, page) {
         url += "&p=" + page;
     }
 
-    var doc = loadDoc(url, "div.z-list");
+    var doc = loadDoc(url);
     if (!doc) return siteError(null);
 
     // Author pages list the author's own stories in #st_inside, favourites elsewhere.

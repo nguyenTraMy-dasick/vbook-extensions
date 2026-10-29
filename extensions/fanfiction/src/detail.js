@@ -5,7 +5,7 @@ function execute(url) {
     if (!id) return Response.error("Link FanFiction.net không hợp lệ: " + url);
 
     var storyUrl = BASE_URL + "/s/" + id + "/1/";
-    var doc = loadDoc(storyUrl, "#profile_top");
+    var doc = loadDoc(storyUrl);
     if (!doc) return siteError(null);
 
     var top = firstEl(doc, "#profile_top");

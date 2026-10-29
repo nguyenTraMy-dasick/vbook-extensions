@@ -4,7 +4,7 @@ function execute(url) {
     var id = getStoryId(normalizeUrl(url));
     if (!id) return Response.error("Link FanFiction.net không hợp lệ: " + url);
 
-    var doc = loadDoc(BASE_URL + "/s/" + id + "/1/", "#storytext");
+    var doc = loadDoc(BASE_URL + "/s/" + id + "/1/");
     if (!doc) return siteError(null);
     if (doc.select("#storytext").size() === 0) return siteError(doc, "Không tìm thấy truyện (có thể đã bị xoá).");
 
