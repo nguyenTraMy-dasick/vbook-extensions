@@ -1,19 +1,38 @@
 {
   "metadata": {
     "name": "Archive of Our Own",
-    "author": "Tramy",
-    "version": 1,
+    "author": "Ivy",
+    "version": 2,
     "source": "https://archiveofourown.org",
-    "regexp": "archiveofourown\\.org/(works|chapters)/\\d+",
+    "regexp": "(https?://)?(www\\.)?(archiveofourown\\.(org|com|net|gay)|ao3\\.org)/(works|chapters)/\\d+.*",
     "description": "Đọc fanfiction trên Archive of Our Own (AO3)",
-    "locale": "en_US",
+    "locale": "en",
     "language": "javascript",
-    "type": "novel"
+    "type": "novel",
+    "nsfw": false
   },
   "script": {
+    "home": "home.js",
+    "genre": "genre.js",
     "search": "search.js",
     "detail": "detail.js",
     "toc": "toc.js",
     "chap": "chap.js"
+  },
+  "config": {
+    "DOMAIN": {
+      "title": "Domain",
+      "default": "https://archiveofourown.org",
+      "mode": "input",
+      "format": "text"
+    },
+    "SHOW_NOTES": {
+      "title": "Hiện ghi chú tác giả",
+      "subtitle": "Hiện Summary/Notes của từng chương trong nội dung",
+      "default": "true",
+      "mode": "toggle"
+    },
+    "thread_num": 2,
+    "delay": 1000
   }
 }

@@ -1,88 +1,51 @@
-var BASE_URL = "https://archiveofourown.org";
-
-function normalizeUrl(url) {
-    if (!url) return "";
-
-    if (url.indexOf("http") === 0) {
-        return url;
-    }
-
-    return BASE_URL + url;
-}
-
-function addAdultParam(url) {
-    if (url.indexOf("view_adult=true") >= 0) {
-        return url;
-    }
-
-    return url +
-        (url.indexOf("?") >= 0 ? "&" : "?") +
-        "view_adult=true";
-}
+load('config.js');
 
 function execute(url) {
-    url = normalizeUrl(url);
-    var fetchUrl = addAdultParam(url);
+    var id = getWorkId(normalizeUrl(url));
+    if (!id) return Response.error("Link AO3 không hợp lệ: " + url);
 
-    var response = fetch(fetchUrl);
+    var chapters = [];
 
-    if (!response.ok) {
-        return Response.error(
-            "Cannot load AO3 TOC: HTTP " +
-            response.status
-        );
-    }
-
-    var doc = response.html();
-
-    var result = [];
-
-    var options =
-        doc.select("select#selected_id option");
-
-    options.forEach(function(option) {
-        var chapterId =
-            option.attr("value");
-
-        if (!chapterId) return;
-
-        var name =
-            option.text().trim();
-
-        result.push({
-            name: name,
-            url: "/chapters/" + chapterId,
-            host: BASE_URL
+    // The chapter index page lists every chapter with its posting date.
+    var nav = loadDoc(adultUrl(BASE_URL + "/works/" + id + "/navigate"), "ol.chapter.index");
+    if (nav) {
+        nav.select("ol.chapter.index li").forEach(function (li) {
+            var a = firstEl(li, "a");
+            if (!a || !a.attr("href")) return;
+            chapters.push({
+                name: cleanText(a.text()),
+                url: a.attr("href"),
+                description: cleanText(li.select("span.datetime").text()).replace(/[()]/g, ""),
+                host: BASE_URL
+            });
         });
-    });
+    }
+    if (chapters.length > 0) return Response.success(chapters);
 
-    /*
-     * Nếu không có dropdown thì đây thường
-     * là one-shot / single chapter work.
-     */
-    if (result.length === 0) {
-        var workMatch =
-            url.match(/\/works\/(\d+)/);
+    // Fallback: the chapter dropdown on the work page, or a single-chapter work.
+    var doc = loadDoc(adultUrl(BASE_URL + "/works/" + id), "#workskin");
+    if (!doc) return loadError();
+    if (doc.select("#workskin").size() === 0) return workError(doc);
 
-        if (!workMatch) {
-            return Response.error(
-                "Cannot determine AO3 work ID"
-            );
-        }
-
-        var title =
-            doc.select(
-                "#workskin > .preface > h2.title"
-            ).first();
-
-        result.push({
-            name: title
-                ? title.text().trim()
-                : "Chapter 1",
-            url: "/works/" + workMatch[1],
+    var select = firstEl(doc, "select#selected_id");
+    if (select) {
+        select.select("option").forEach(function (opt) {
+            var chapterId = opt.attr("value");
+            if (!chapterId) return;
+            chapters.push({
+                name: cleanText(opt.text()),
+                url: "/works/" + id + "/chapters/" + chapterId,
+                host: BASE_URL
+            });
+        });
+    }
+    if (chapters.length === 0) {
+        var title = firstEl(doc, "#workskin h2.title");
+        chapters.push({
+            name: title ? cleanText(title.text()) : "Chapter 1",
+            url: "/works/" + id,
             host: BASE_URL
         });
     }
-
-    return Response.success(result);
+    return Response.success(chapters);
 }
